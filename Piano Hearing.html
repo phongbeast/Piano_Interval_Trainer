@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pro Piano Interval Trainer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        /* --- DARK THEME VARIABLES --- */
+        :root {
+            --bg-main: #121212;
+            --bg-container: #1e1e1e;
+            --bg-secondary: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --primary: #4a90e2; 
+            --accent: #ff5252;  
+            --success: #66bb6a; 
+            
+            /* Piano Dimensions */
+            --white-key-width: 42px;
+            --white-key-height: 160px;
+            --black-key-width: 26px;
+            --black-key-height: 100px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        /* --- PIANO CONTAINER --- */
+        .piano-wrapper {
+            width: 100%;
+            max-width: 900px;
+            height: 200px; 
+            overflow-x: auto;
+            margin-bottom: 25px;
+            padding: 10px 0;
+            background: #050505;
+            border-radius: 10px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+            border-top: 5px solid #333;
+            text-align: left; 
+            position: relative;
+            scrollbar-width: thin;
+            scrollbar-color: #444 #111;
+        }
+
+        #piano-visual {
+            position: relative;
+            height: 100%;
+            margin: 0 20px; 
+        }
+
+        .piano-label {
+            position: absolute;
+            top: 5px;
+            left: 20px;
+            font-size: 0.8rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            z-index: 10;
+        }
+
+        /* --- KEY STYLES --- */
+        .white-key {
+            position: absolute;
+            top: 0;
+            width: var(--white-key-width);
+            height: var(--white-key-height);
+            background: linear-gradient(to bottom, #fff 0%, #f0f0f0 100%);
+            border: 1px solid #000;
+            border-radius: 0 0 5px 5px;
+            z-index: 1;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .black-key {
+            position: absolute;
+            top: 0;
+            width: var(--black-key-width);
+            height: var(--black-key-height);
+            background: linear-gradient(to bottom, #333 0%, #000 100%);
+            border: 1px solid #000;
+            border-radius: 0 0 4px 4px;
+            z-index: 5; 
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+
+        /* C4 Label Style */
+        .white-key[data-note="C4"] {
+            background: linear-gradient(to bottom, #fff 0%, #e0e6ed 100%);
+        }
+        .white-key[data-note="C4"]::after {
+            content: "C4";
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #4a90e2;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        /* Active/Pressed States */
+        .white-key.pressed {
+            background: #ccc;
+            transform: translateY(2px);
+            box-shadow: inset 0 5px 5px rgba(0,0,0,0.2);
+        }
+        .black-key.pressed {
+            background: #222;
+            box-shadow: inset 0 2px 5px rgba(255,255,255,0.1);
+        }
+
+        /* --- UI COMPONENTS --- */
+        .container {
+            background: var(--bg-container);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 650px;
+            width: 100%;
+        }
+
+        h1 { margin-bottom: 0.5rem; margin-top: 0; color: var(--text-main); }
+
+        .settings-bar {
+            background-color: var(--bg-secondary);
+            border: 1px solid #444;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+            align-items: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: var(--bg-main);
+            color: var(--text-main);
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .toggle-label input { margin-right: 8px; }
+
+        .notes-display {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin: 1.5rem 0;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .note-card {
+            background: var(--bg-secondary);
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            border: 2px solid #444;
+            min-width: 80px;
+            position: relative;
+            color: var(--text-main);
+        }
+
+        .note-card.root { border-color: var(--primary); color: var(--primary); }
+        .note-card.target { border-color: var(--accent); color: var(--accent); }
+        
+        .label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .peek-btn {
+            position: absolute; top: -10px; right: -10px;
+            background: var(--bg-secondary); color: var(--text-muted);
+            border: 1px solid #555; border-radius: 50%;
+            width: 24px; height: 24px; font-size: 12px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .peek-btn:hover { background: #444; color: var(--text-main); }
+
+        .controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 2rem; }
+
+        button.control-btn {
+            cursor: pointer; padding: 10px 20px; border: none;
+            border-radius: 5px; font-size: 1rem; transition: all 0.2s; font-weight: bold;
+        }
+
+        .btn-main { background-color: var(--primary); color: var(--bg-main); }
+        .btn-main:hover { filter: brightness(1.2); }
+        
+        .btn-replay { background-color: #d35400; color: white; }
+        .btn-replay:hover { filter: brightness(1.2); }
+        .btn-replay:disabled { background-color: #555; color: #888; cursor: not-allowed; }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .option-btn {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 10px; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
+        }
+
+        .option-btn:hover:not(:disabled) {
+            background-color: var(--primary); color: var(--bg-main);
+        }
+        .option-btn:disabled { opacity: 0.5; cursor: default; border-color: #555; color: #888;}
+        .option-btn.correct { background-color: var(--success) !important; color: var(--bg-main) !important; border-color: var(--success) !important; opacity: 1; }
+        .option-btn.wrong { background-color: var(--accent) !important; color: var(--bg-main) !important; border-color: var(--accent) !important; opacity: 1; }
+
+        .result-msg { margin-top: 1.5rem; font-size: 1.2rem; font-weight: bold; height: 30px; }
+
+        #loading {
+            position: fixed; top:0; left:0; width:100%; height:100%;
+            background: var(--bg-main); opacity: 0.98;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 200; font-size: 1.5rem; color: var(--primary);
+            flex-direction: column; gap: 10px;
+        }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="loading">
+        <div>Loading HD Piano Sounds...</div>
+        <div style="font-size: 1rem; color: var(--text-muted);">Configuring Reverb & Audio Engine...</div>
+    </div>
+
+    <div class="piano-wrapper">
+        <div class="piano-label">Discovery Piano (C4 = Middle C)</div>
+        <div id="piano-visual">
+            </div>
+    </div>
+
+    <div class="container">
+        <h1>🎹 Interval Trainer</h1>
+        
+        <div class="settings-bar">
+            <div>
+                <label for="root-select"><strong>Root Note:</strong></label>
+                <select id="root-select">
+                    <option value="random">Random (C3-C5)</option>
+                    <option disabled>──────────</option>
+                </select>
+            </div>
+            
+            <label class="toggle-label">
+                <input type="checkbox" id="hide-toggle" checked>
+                Hide Target Note Name
+            </label>
+        </div>
+
+        <div class="notes-display">
+            <div class="note-card root">
+                <span class="label">Root</span>
+                <span id="root-display">-</span>
+            </div>
+            <div class="note-card target">
+                <span class="label">Target</span>
+                <span id="target-display">?</span>
+                <button class="peek-btn" title="Peek Answer" onclick="togglePeek()">👁️</button>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="control-btn btn-main" id="start-btn" onclick="nextQuestion()">Next / Random</button>
+            <button class="control-btn btn-replay" id="replay-btn" onclick="playCurrentInterval()" disabled>🔊 Replay</button>
+        </div>
+
+        <div class="options-grid" id="options-container">
+            </div>
+
+        <div class="result-msg" id="result-message"></div>
+    </div>
+
+    <script>
+        // --- 1. CONFIG & DATA ---
+        const intervals = [
+            { name: "Minor 2nd", semitones: 1 }, { name: "Major 2nd", semitones: 2 },
+            { name: "Minor 3rd", semitones: 3 }, { name: "Major 3rd", semitones: 4 },
+            { name: "Perfect 4th", semitones: 5 }, { name: "Tritone", semitones: 6 },
+            { name: "Perfect 5th", semitones: 7 }, { name: "Minor 6th", semitones: 8 },
+            { name: "Major 6th", semitones: 9 }, { name: "Minor 7th", semitones: 10 },
+            { name: "Major 7th", semitones: 11 }, { name: "Octave", semitones: 12 }
+        ];
+
+        let currentRoot = null;
+        let currentTarget = null;
+        let currentInterval = null;
+        let isAnswered = false;
+        let sampler = null;
+        let reverb = null;
+        let isLoaded = false;
+
+        const WHITE_W = 42; 
+        const BLACK_W = 26;
+
+        // --- 2. BUILD VISUAL PIANO (Absolute Positioning) ---
+        function initUI() {
+            const pianoContainer = document.getElementById('piano-visual');
+            const startOctave = 2;
+            const endOctave = 6;
+            const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            
+            let whiteKeyIndex = 0;
+
+            for (let oct = startOctave; oct <= endOctave; oct++) {
+                notes.forEach(note => {
+                    const noteName = note + oct;
+                    const isSharp = note.includes('#');
+                    const keyDiv = document.createElement('div');
+                    keyDiv.dataset.note = noteName;
+
+                    // --- NEW MANUAL INPUT LOGIC (Uniform Sound) ---
+                    const pressKey = (e) => {
+                        // Prevent dragging/scrolling while playing
+                        if(e.cancelable && e.type !== 'mousedown') e.preventDefault(); 
+                        if(e.type === 'mousedown' && e.buttons !== 1) return;
+
+                        // Visual Feedback
+                        keyDiv.classList.add('pressed');
+                        
+                        // Audio: Fire ONCE with full duration (Pedal effect)
+                        // "1n" = Whole note duration, ensures it rings out
+                        manualPlayNote(noteName);
+                    };
+
+                    const releaseKey = (e) => {
+                        // Only remove visual class. 
+                        // Do NOT stop audio (let it ring like a pedal)
+                        keyDiv.classList.remove('pressed');
+                    };
+
+                    // Events
+                    keyDiv.addEventListener('mousedown', pressKey);
+                    keyDiv.addEventListener('touchstart', pressKey);
+                    
+                    // Release events (Visual only now)
+                    keyDiv.addEventListener('mouseup', releaseKey);
+                    keyDiv.addEventListener('mouseleave', releaseKey);
+                    keyDiv.addEventListener('touchend', releaseKey);
+
+                    // Positioning
+                    if (isSharp) {
+                        keyDiv.className = 'black-key';
+                        const leftPos = (whiteKeyIndex * WHITE_W) - (BLACK_W / 2);
+                        keyDiv.style.left = leftPos + 'px';
+                        pianoContainer.appendChild(keyDiv);
+                    } else {
+                        keyDiv.className = 'white-key';
+                        const leftPos = whiteKeyIndex * WHITE_W;
+                        keyDiv.style.left = leftPos + 'px';
+                        pianoContainer.appendChild(keyDiv);
+                        whiteKeyIndex++; 
+                    }
+                });
+            }
+
+            pianoContainer.style.width = (whiteKeyIndex * WHITE_W) + 'px';
+
+            const select = document.getElementById('root-select');
+            for (let oct = 2; oct <= 5; oct++) {
+                notes.forEach(note => {
+                    const noteName = note + oct;
+                    const option = document.createElement('option');
+                    option.value = noteName;
+                    option.text = noteName;
+                    if (noteName === 'C4') option.selected = true; 
+                    select.appendChild(option);
+                });
+            }
+        }
+        initUI();
+
+        // --- 3. AUTO SCROLL ADJUSTMENT (Left-Center) ---
+        function centerPianoScroll() {
+            const wrapper = document.querySelector('.piano-wrapper');
+            const c4Key = document.querySelector('.white-key[data-note="C4"]');
+            
+            if (wrapper && c4Key) {
+                const c4Pos = parseInt(c4Key.style.left);
+                // Position C4 at 25% of the viewport width (Left side)
+                // This leaves 75% of the space for keys to the right (the interval)
+                const targetScroll = c4Pos - (wrapper.clientWidth * 0.25);
+                wrapper.scrollLeft = targetScroll;
+            }
+        }
+        setTimeout(centerPianoScroll, 200);
+
+
+        // --- 4. AUDIO ENGINE (Reverb & Sound) ---
+        function initAudio() {
+            reverb = new Tone.Reverb({
+                decay: 3.5,    
+                preDelay: 0.01,
+                wet: 0.4       
+            }).toDestination();
+
+            sampler = new Tone.Sampler({
+                urls: {
+                    "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", "A2": "A2.mp3",
+                    "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", "A3": "A3.mp3",
+                    "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", "A4": "A4.mp3",
+                    "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", "A5": "A5.mp3",
+                    "C6": "C6.mp3"
+                },
+                release: 3, 
+                baseUrl: "https://tonejs.github.io/audio/salamander/",
+                onload: () => {
+                    document.getElementById('loading').classList.add('hidden');
+                    isLoaded = true;
+                    sampler.connect(reverb);
+                }
+            });
+        }
+        initAudio();
+
+        const optionsContainer = document.getElementById('options-container');
+        intervals.forEach(interval => {
+            const btn = document.createElement('button');
+            btn.className = 'option-btn';
+            btn.innerText = interval.name;
+            btn.onclick = () => checkAnswer(interval.semitones, btn);
+            optionsContainer.appendChild(btn);
+        });
+
+        // --- 5. MANUAL PLAY LOGIC (Updated) ---
+        async function manualPlayNote(note) {
+            if(!isLoaded || !sampler) return;
+            await Tone.start();
+            
+            // Trigger AttackRelease for "1n" (Whole Note).
+            // This ensures consistent sound with Reverb/Pedal regardless of click duration.
+            sampler.triggerAttackRelease(note, "1n");
+        }
+
+        // --- 6. GAME LOGIC ---
+        async function nextQuestion() {
+            if(!isLoaded) return;
+            await Tone.start();
+
+            isAnswered = false;
+            document.getElementById('result-message').innerText = "";
+            document.getElementById('replay-btn').disabled = false;
+            const shouldHide = document.getElementById('hide-toggle').checked;
+            
+            const btns = document.querySelectorAll('.option-btn');
+            btns.forEach(b => {
+                b.disabled = false;
+                b.classList.remove('correct', 'wrong');
+            });
+
+            const rootSelection = document.getElementById('root-select').value;
+            let rootMidi;
+
+            if (rootSelection === 'random') {
+                rootMidi = Math.floor(Math.random() * (72 - 48 + 1)) + 48;
+            } else {
+                rootMidi = Tone.Frequency(rootSelection).toMidi();
+            }
+
+            const intervalObj = intervals[Math.floor(Math.random() * intervals.length)];
+            currentInterval = intervalObj;
+            const targetMidi = rootMidi + intervalObj.semitones;
+
+            currentRoot = Tone.Frequency(rootMidi, "midi").toNote();
+            currentTarget = Tone.Frequency(targetMidi, "midi").toNote();
+
+            document.getElementById('root-display').innerText = currentRoot;
+            document.getElementById('target-display').innerText = shouldHide ? "?" : currentTarget;
+
+            playCurrentInterval();
+        }
+
+        function playCurrentInterval() {
+            if (!sampler || !currentRoot || !currentTarget) return;
+            
+            const now = Tone.now();
+            // Same sound logic as manual play (Long sustain)
+            sampler.triggerAttackRelease(currentRoot, "1n", now);
+            sampler.triggerAttackRelease(currentTarget, "1n", now + 0.8);
+        }
+
+        function checkAnswer(semitones, btnElement) {
+            if (isAnswered) return;
+            isAnswered = true;
+
+            document.getElementById('target-display').innerText = currentTarget;
+            const resultMsg = document.getElementById('result-message');
+
+            if (semitones === currentInterval.semitones) {
+                btnElement.classList.add('correct');
+                resultMsg.innerText = "Correct! 🎉";
+                resultMsg.style.color = "var(--success)";
+            } else {
+                btnElement.classList.add('wrong');
+                resultMsg.innerText = `Incorrect. It was a ${currentInterval.name}.`;
+                resultMsg.style.color = "var(--accent)";
+                
+                const allBtns = document.querySelectorAll('.option-btn');
+                allBtns.forEach(b => {
+                    if (b.innerText === currentInterval.name) b.classList.add('correct');
+                });
+            }
+
+            const allBtns = document.querySelectorAll('.option-btn');
+            allBtns.forEach(b => b.disabled = true);
+        }
+
+        function togglePeek() {
+            const display = document.getElementById('target-display');
+            if (display.innerText === "?") {
+                display.innerText = currentTarget || "?";
+            } else if (!isAnswered) {
+                display.innerText = "?";
+            }
+        }
+    </script>
+</body>
+</html>
